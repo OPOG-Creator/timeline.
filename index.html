@@ -89,6 +89,17 @@ button{cursor:pointer}
 .stat .n.small{font-size:16px;margin-top:8px;font-family:var(--font-mono);font-weight:500}
 .stat.flagged .n{color:var(--flag)}
 .stat.ok .n{color:var(--ok)}
+button.stat{text-align:left;cursor:pointer;font:inherit;color:inherit;display:block;width:100%;background:var(--surface);-webkit-tap-highlight-color:transparent;-webkit-appearance:none;appearance:none}
+button.stat:focus{background:var(--surface)}
+button.stat:hover{border-color:var(--navy);box-shadow:var(--shadow)}
+.stat .go{font-size:12px;color:var(--muted);margin-top:8px;font-weight:500}
+button.stat:hover .go{color:var(--ink)}
+.pill.doc,.pill.person{cursor:pointer;border:0;font:inherit}
+.pill.doc:hover{text-decoration:underline}
+.pill.person:hover{text-decoration:underline}
+.item.highlight{outline:3px solid var(--yellow);outline-offset:2px}
+.filter-note{display:none;font-size:13px;background:var(--surface-2);border-radius:4px;padding:8px 12px;margin-bottom:10px}
+.filter-note.show{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
 
 .tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);flex-wrap:wrap}
 .tab{background:none;border:0;padding:10px 14px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px;border-radius:0}
@@ -241,11 +252,11 @@ dialog textarea{min-height:160px;font-family:var(--font-mono);font-size:12px}
   </section>
 
   <section class="stats" aria-label="Summary">
-    <div class="stat"><div class="eyebrow">Events</div><div class="n" id="stEvents">0</div></div>
-    <div class="stat ok"><div class="eyebrow">With a source listed</div><div class="n" id="stDocumented">0</div></div>
-    <div class="stat flagged"><div class="eyebrow">Items to review</div><div class="n" id="stFlags">0</div></div>
-    <div class="stat"><div class="eyebrow">Date range</div><div class="n small" id="stRange">&#8212;</div></div>
-    <div class="stat"><div class="eyebrow">People &#183; Documents</div><div class="n small" id="stCounts">0 &#183; 0</div></div>
+    <button class="stat" type="button" data-go="timeline" title="See all events"><div class="eyebrow">Events</div><div class="n" id="stEvents">0</div><div class="go">View timeline &#8250;</div></button>
+    <button class="stat ok" type="button" data-go="documented" title="See events that have a source document"><div class="eyebrow">With a source listed</div><div class="n" id="stDocumented">0</div><div class="go">View &#8250;</div></button>
+    <button class="stat flagged" type="button" data-go="flagged" title="See events that need review"><div class="eyebrow">Items to review</div><div class="n" id="stFlags">0</div><div class="go">View &#8250;</div></button>
+    <button class="stat" type="button" data-go="timeline" title="See the timeline"><div class="eyebrow">Date range</div><div class="n small" id="stRange">&#8212;</div><div class="go">View timeline &#8250;</div></button>
+    <button class="stat" type="button" data-go="docs" title="See people and documents"><div class="eyebrow">People &#183; Documents</div><div class="n small" id="stCounts">0 &#183; 0</div><div class="go">View documents &#8250;</div></button>
   </section>
 
   <nav class="tabs" role="tablist" aria-label="Sections">
@@ -312,10 +323,11 @@ dialog textarea{min-height:160px;font-family:var(--font-mono);font-size:12px}
       <div class="toolbar">
         <select id="fPerson"><option value="">All people</option></select>
         <select id="fCat"><option value="">All categories</option></select>
-        <label class="toggle"><input type="checkbox" id="fFlagged"> Items to review only</label>
+        <select id="fShow"><option value="">All events</option><option value="flagged">Items to review only</option><option value="documented">With a source listed only</option><option value="undocumented">No source listed only</option></select>
         <span class="spacer"></span>
         <select id="fSort"><option value="asc">Oldest first</option><option value="desc">Newest first</option></select>
       </div>
+      <div class="filter-note" id="filterNote"><span id="filterNoteText"></span><button class="btn small" type="button" id="clearFilters">Show all events</button></div>
       <div class="timeline" id="timeline"></div>
     </div>
   </section>
@@ -494,6 +506,7 @@ dialog textarea{min-height:160px;font-family:var(--font-mono);font-size:12px}
   $('evDesc').addEventListener('input',e=>langCheck(e.target.value));
 
   // ---------- Tabs ----------
+  function showTab(name){ const b=document.querySelector(`.tab[data-tab="${name}"]`); if(b) b.click(); }
   document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>{
     document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b===btn?'true':'false'));
     ['timeline','people','docs','report'].forEach(t=>{ $('tab-'+t).hidden=(t!==btn.dataset.tab); });
@@ -552,7 +565,7 @@ dialog textarea{min-height:160px;font-family:var(--font-mono);font-size:12px}
     const sorted=[...state.docs].sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
     el.innerHTML=sorted.map(d=>{
       const uses=state.events.filter(e=>(e.docs||[]).includes(d.id)).length;
-      return `<div class="item"><div><div class="name">${esc(d.title)}</div><div class="sub">${esc(d.type)}${d.date?' \u00b7 <span class="mono">'+fmtDate(d.date)+'</span>':''}${d.from?' \u00b7 from '+esc(d.from):''}</div><div class="sub">${d.where?'Kept: '+esc(d.where):'<span style="color:var(--flag)">No location noted</span>'}${d.notes?' \u00b7 '+esc(d.notes):''}</div><div class="use">Linked to ${uses} event${uses===1?'':'s'}</div></div>
+      return `<div class="item" data-doc="${d.id}"><div><div class="name">${esc(d.title)}</div><div class="sub">${esc(d.type)}${d.date?' \u00b7 <span class="mono">'+fmtDate(d.date)+'</span>':''}${d.from?' \u00b7 from '+esc(d.from):''}</div><div class="sub">${d.where?'Kept: '+esc(d.where):'<span style="color:var(--flag)">No location noted</span>'}${d.notes?' \u00b7 '+esc(d.notes):''}</div><div class="use">Linked to ${uses} event${uses===1?'':'s'}</div></div>
       <div class="btn-row" style="margin:0"><button class="btn small" data-act="editD" data-id="${d.id}" type="button">Edit</button><button class="btn small danger" data-act="delD" data-id="${d.id}" type="button">Remove</button></div></div>`;
     }).join('');
   }
@@ -595,17 +608,22 @@ dialog textarea{min-height:160px;font-family:var(--font-mono);font-size:12px}
   function sortedEvents(dir){ return [...state.events].sort((a,b)=>{ const ka=a.date+'T'+(a.time||'00:00'); const kb=b.date+'T'+(b.time||'00:00'); return dir==='desc'?kb.localeCompare(ka):ka.localeCompare(kb); }); }
 
   function renderTimeline(){
-    const el=$('timeline'); const fp=$('fPerson').value, fc=$('fCat').value, ff=$('fFlagged').checked, dir=$('fSort').value;
+    const el=$('timeline'); const fp=$('fPerson').value, fc=$('fCat').value, fs=$('fShow').value, dir=$('fSort').value;
     let list=sortedEvents(dir).filter(e=>(!fp||(e.people||[]).includes(fp)||e.attrib===fp)&&(!fc||e.cat===fc));
     const withFlags=list.map(e=>({e,flags:flagsFor(e)}));
-    const shown=ff?withFlags.filter(x=>x.flags.length):withFlags;
+    let shown=withFlags;
+    if(fs==='flagged') shown=withFlags.filter(x=>x.flags.length);
+    else if(fs==='documented') shown=withFlags.filter(x=>(x.e.docs||[]).some(docById));
+    else if(fs==='undocumented') shown=withFlags.filter(x=>!(x.e.docs||[]).some(docById));
+    const notes=[]; if(fp&&personById(fp)) notes.push('Showing events involving '+personById(fp).name); if(fc) notes.push('Category: '+fc); if(fs) notes.push($('fShow').selectedOptions[0].textContent);
+    $('filterNote').classList.toggle('show',notes.length>0); $('filterNoteText').textContent=notes.join(' \u00b7 ');
     if(!state.events.length){ el.innerHTML='<div class="empty">Your timeline is empty. Add your first event using the form. Start with the events you are surest about \u2014 dated orders, messages, and records \u2014 and fill in the rest as you go.</div>'; return; }
     if(!shown.length){ el.innerHTML='<div class="empty">No events match these filters.</div>'; return; }
     let html=''; let lastMonth='';
     shown.forEach(({e,flags})=>{
       const mk=monthKey(e.date); if(mk!==lastMonth){ html+=`<div class="month"><h3>${esc(mk)}</h3><hr></div>`; lastMonth=mk; }
-      const people=(e.people||[]).map(personById).filter(Boolean).map(p=>`<span class="pill person">${esc(p.name)}</span>`).join('');
-      const docs=(e.docs||[]).map(docById).filter(Boolean).map(d=>`<span class="pill doc" title="${esc(d.where||'')}">${esc(d.title)}</span>`).join('');
+      const people=(e.people||[]).map(personById).filter(Boolean).map(p=>`<button type="button" class="pill person" data-act="filterP" data-id="${p.id}" title="Show only this person's events">${esc(p.name)}</button>`).join('');
+      const docs=(e.docs||[]).map(docById).filter(Boolean).map(d=>`<button type="button" class="pill doc" data-act="openD" data-id="${d.id}" title="Open this document${d.where?' ('+esc(d.where)+')':''}">${esc(d.title)}</button>`).join('');
       const attrib=e.attrib&&personById(e.attrib)?`<span class="pill">Statement attributed to: ${esc(personById(e.attrib).name)}</span>`:'';
       html+=`<article class="ev ${flags.length?'flagged':''}">
         <div class="when"><div class="d">${esc(fmtDate(e.date))}</div>${e.time?`<div class="t">${esc(fmtTime(e.time))}</div>`:''}${e.approx?'<span class="approx">approx.</span>':''}</div>
@@ -619,12 +637,22 @@ dialog textarea{min-height:160px;font-family:var(--font-mono);font-size:12px}
     });
     el.innerHTML=html;
   }
-  ['fPerson','fCat','fFlagged','fSort'].forEach(id=>$(id).addEventListener('change',renderTimeline));
+  ['fPerson','fCat','fShow','fSort'].forEach(id=>$(id).addEventListener('change',renderTimeline));
+  $('clearFilters').addEventListener('click',()=>{ $('fPerson').value=''; $('fCat').value=''; $('fShow').value=''; renderTimeline(); });
+  // Summary tiles jump to the matching view
+  document.querySelectorAll('button.stat').forEach(b=>b.addEventListener('click',()=>{
+    const go=b.dataset.go;
+    if(go==='docs'){ showTab('docs'); return; }
+    $('fPerson').value=''; $('fCat').value=''; $('fShow').value=(go==='flagged'||go==='documented')?go:'';
+    showTab('timeline'); renderTimeline(); $('timeline').scrollIntoView({behavior:'smooth',block:'start'});
+  }));
+  function openDoc(id){ showTab('docs'); const el=document.querySelector(`#docsList [data-doc="${id}"]`); if(el){ el.classList.add('highlight'); el.scrollIntoView({behavior:'smooth',block:'center'}); setTimeout(()=>el.classList.remove('highlight'),2500); } }
+  function filterPerson(id){ $('fPerson').value=id; renderTimeline(); $('timeline').scrollIntoView({behavior:'smooth',block:'start'}); }
 
   // Delegated actions
   document.addEventListener('click',e=>{
     const b=e.target.closest('[data-act]'); if(!b) return; const id=b.dataset.id;
-    ({editP:editPerson,delP:removePerson,editD:editDoc,delD:removeDoc,editE:editEvent,delE:removeEvent})[b.dataset.act](id);
+    ({editP:editPerson,delP:removePerson,editD:editDoc,delD:removeDoc,editE:editEvent,delE:removeEvent,openD:openDoc,filterP:filterPerson})[b.dataset.act](id);
   });
 
   // ---------- Stats ----------
